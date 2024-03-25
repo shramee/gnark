@@ -319,9 +319,51 @@ type lineEvaluation struct {
 	R0, R1 fields_bn254.E2
 }
 
+func (pr Pairing) PrintG1(p *G1Affine) {
+	fmt.Print("pt1(\n")
+	pr.curveF.Hex(&p.X)
+	pr.curveF.Hex(&p.Y)
+	fmt.Print(")\n\n")
+}
+
+func (pr Pairing) PrintG2(p *G2Affine) {
+	fmt.Print("pt2(\n")
+	pr.curveF.Hex(&p.X.A0)
+	pr.curveF.Hex(&p.X.A1)
+	pr.curveF.Hex(&p.Y.A0)
+	pr.curveF.Hex(&p.Y.A1)
+	fmt.Print(")\n\n")
+}
+
+func (pr Pairing) PrintFq2(x *fields_bn254.E2) {
+	fmt.Print("fq2(\n")
+	pr.curveF.Hex(&x.A0)
+	pr.curveF.Hex(&x.A1)
+	fmt.Print(")\n\n")
+}
+
+func (pr Pairing) PrintGT(x *fields_bn254.E12) {
+	fmt.Print("fq12(\n")
+	pr.curveF.Hex(&x.C0.B0.A0)
+	pr.curveF.Hex(&x.C0.B0.A1)
+	pr.curveF.Hex(&x.C0.B1.A0)
+	pr.curveF.Hex(&x.C0.B1.A1)
+	pr.curveF.Hex(&x.C0.B2.A0)
+	pr.curveF.Hex(&x.C0.B2.A1)
+	pr.curveF.Hex(&x.C1.B0.A0)
+	pr.curveF.Hex(&x.C1.B0.A1)
+	pr.curveF.Hex(&x.C1.B1.A0)
+	pr.curveF.Hex(&x.C1.B1.A1)
+	pr.curveF.Hex(&x.C1.B2.A0)
+	pr.curveF.Hex(&x.C1.B2.A1)
+	fmt.Print(")\n\n")
+}
+
 // MillerLoop computes the multi-Miller loop
 // ∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+
+	// #region Setup
 	// check input size match
 	n := len(P)
 	if n == 0 || n != len(Q) {
@@ -349,7 +391,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		xNegOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
+	// #endregion Setup
 
+	// #region i = 64
 	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
 	// i = 64, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
@@ -404,6 +448,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 			res = pr.MulBy034(res, &l1.R0, &l1.R1)
 		}
 	}
+	// #endregion i = 64
 
 	// i = 63, separately to avoid a doubleStep
 	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
@@ -413,9 +458,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	} else {
 		res = pr.Square(res)
-
 	}
 	for k := 0; k < n; k++ {
+		// Qacc[k] ← 2Qacc[k]-Q[k],
 		// l2 the line passing Qacc[k] and -Q
 		l2 = pr.lineCompute(Qacc[k], QNeg[k])
 
@@ -436,6 +481,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// (ℓ × ℓ) × res
 		res = pr.MulBy01234(res, &prodLines)
 	}
+
+	// print("first_second = ")
+	// pr.PrintGT(res)
 
 	l1s := make([]*lineEvaluation, n)
 	for i := 62; i >= 0; i-- {
@@ -523,20 +571,36 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 	}
 
+	// print("loop = ")
+	// pr.PrintGT(res)
+	// print("acc = ")
+	// pr.PrintG2(Qacc[0])
+
 	// Compute  ∏ᵢ { ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
 	Q1, Q2 := new(G2Affine), new(G2Affine)
 	for k := 0; k < n; k++ {
+
+		// print("Q[", k, "] = ")
+		// pr.PrintG2(Q[k])
+
 		//Q1 = π(Q)
 		Q1.X = *pr.Ext2.Conjugate(&Q[k].X)
 		Q1.X = *pr.Ext2.MulByNonResidue1Power2(&Q1.X)
 		Q1.Y = *pr.Ext2.Conjugate(&Q[k].Y)
 		Q1.Y = *pr.Ext2.MulByNonResidue1Power3(&Q1.Y)
 
+		// print("Q1 = π(Q) = ")
+		// pr.PrintG2(Q1)
+
 		// Q2 = -π²(Q)
 		Q2.X = *pr.Ext2.MulByNonResidue2Power2(&Q[k].X)
 		Q2.Y = *pr.Ext2.MulByNonResidue2Power3(&Q[k].Y)
 		Q2.Y = *pr.Ext2.Neg(&Q2.Y)
 
+		print("acc1 = ")
+		pr.PrintG2(Qacc[k])
+		print("Q1 = π(Q) = ")
+		pr.PrintG2(Q1)
 		// Qacc[k] ← Qacc[k]+π(Q) and
 		// l1 the line passing Qacc[k] and π(Q)
 		Qacc[k], l1 = pr.addStep(Qacc[k], Q1)
@@ -545,18 +609,31 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		l1.R0 = *pr.Ext2.MulByElement(&l1.R0, xNegOverY[k])
 		l1.R1 = *pr.Ext2.MulByElement(&l1.R1, yInv[k])
 
+		print("acc2 = ")
+		pr.PrintG2(Qacc[k])
+		print("Q2 = -π²(Q) = ")
+		pr.PrintG2(Q2)
 		// l2 the line passing Qacc[k] and -π²(Q)
 		l2 = pr.lineCompute(Qacc[k], Q2)
 		// line evaluation at P[k]
 		l2.R0 = *pr.MulByElement(&l2.R0, xNegOverY[k])
 		l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
 
+		print("expected_l2c3 = ")
+		pr.PrintFq2(&l2.R0)
+		print("expected_l2c3 = ")
+		pr.PrintFq2(&l2.R1)
+
 		// ℓ × ℓ
 		prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
 		// (ℓ × ℓ) × res
 		res = pr.MulBy01234(res, &prodLines)
-
 	}
+
+	// print("lastAcc = ")
+	// pr.PrintG2(Qacc[0])
+	// println("last = ")
+	// pr.PrintGT(res)
 
 	return res, nil
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -48,6 +49,52 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 	res2 := pairing.FinalExponentiationUnsafe(&c.InGt)
 	pairing.AssertIsEqual(res2, &c.Res)
 	return nil
+}
+
+func TestPairShramee(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	_, _, G1AffGen, G2AffGen := bn254.Generators()
+
+	s1, s2 := big.Int{}, big.Int{}
+
+	s1.SetInt64(int64(3))
+	s2.SetInt64(int64(5))
+
+	var p bn254.G1Affine
+	p.ScalarMultiplication(&G1AffGen, &s1)
+	// p.Set(&G1AffGen)
+	var q bn254.G2Affine
+	q.ScalarMultiplication(&G2AffGen, &s2)
+	// q.Set(&G2AffGen)
+
+	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestShramee(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, G1AffGen, G2AffGen := bn254.Generators()
+
+	s1, s2 := big.Int{}, big.Int{}
+
+	s1.SetInt64(int64(3))
+	s2.SetInt64(int64(5))
+
+	var p bn254.G1Affine
+	p.ScalarMultiplication(&G1AffGen, &s1)
+	var q bn254.G2Affine
+	q.ScalarMultiplication(&G2AffGen, &s2)
+
+	_, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
+	assert.NoError(err)
 }
 
 func TestFinalExponentiationTestSolve(t *testing.T) {

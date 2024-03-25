@@ -213,6 +213,13 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 }
 
 // Reduce reduces a modulo the field order and returns it. Uses hint [RemHint].
+func (f *Field[T]) ToBigInt(a *Element[T]) *big.Int {
+	aa, s := f.constantValue(a)
+	println(s)
+	return aa
+}
+
+// Reduce reduces a modulo the field order and returns it. Uses hint [RemHint].
 func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	f.enforceWidthConditional(a)
 	if a.overflow == 0 {

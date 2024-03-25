@@ -131,6 +131,12 @@ func (f *Field[T]) One() *Element[T] {
 	return f.oneConst
 }
 
+// One returns one as a constant.
+func (f *Field[T]) Hex(x *Element[T]) {
+	x = f.Reduce(x)
+	fmt.Printf("0x%x%016x%016x%016x,\n", x.Limbs[3], x.Limbs[2], x.Limbs[1], x.Limbs[0])
+}
+
 // Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
