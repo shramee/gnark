@@ -161,6 +161,24 @@ func (e *Element[T]) Initialize(field *big.Int) {
 	e.bitsOverflow = 0
 }
 
+// Overflow returns the current overflow of the element, i.e. the number of
+// additions on top of the normal form. External packages implementing deferred
+// or batched operations on emulated elements need access to this value to track
+// limb growth and decide when reduction is required.
+func (e *Element[T]) Overflow() uint {
+	if e == nil {
+		return 0
+	}
+	return e.overflow
+}
+
+// SetOverflow sets the overflow of the element. It is used by external
+// packages which construct elements from already-constrained limbs and know
+// the resulting overflow bound by construction.
+func (e *Element[T]) SetOverflow(o uint) {
+	e.overflow = o
+}
+
 // copy makes a deep copy of the element.
 func (e *Element[T]) copy() *Element[T] {
 	r := Element[T]{}
